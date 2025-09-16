@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gRPC: Beyond Unary RPC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827;
+            color: #F9FAFB;
+        }
+
+        .slide {
+            display: none;
+            border: 1px solid #374151;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .slide.active {
+            display: flex;
+        }
+
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .actor {
+            width: 100px;
+            text-align: center;
+        }
+
+        .arrows {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 1rem;
+            position: relative;
+            padding: 1rem 0;
+        }
+
+        .arrow {
+            width: 100%;
+            position: relative;
+            padding: 0.5rem;
+            margin: 0.25rem 0;
+            text-align: center;
+            border-radius: 0.375rem;
+            background-color: #374151;
+            font-size: 0.875rem;
+        }
+
+        .arrow::after {
+            content: '►';
+            position: absolute;
+            right: -1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9CA3AF;
+        }
+
+        .arrow.response::after {
+            content: '◄';
+            left: -1.25rem;
+            right: auto;
+        }
+
+        .flag {
+            font-weight: 600;
+            color: #FBBF24;
+            display: block;
+            font-size: 0.75rem;
+        }
+
+        .code {
+            background-color: #1F2937;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: monospace;
+            white-space: pre;
+            font-size: 0.875rem;
+        }
+
+        .multiplex-timeline {
+            background-color: #1F2937;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .multiplex-frame {
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-right: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        /* Fullscreen styles */
+        #presentation-container:fullscreen {
+            border-radius: 0;
+        }
+    </style>
+</head>
+
+<body class="flex flex-col items-center justify-center min-h-screen p-4 md:p-8">
+
+    <div id="presentation-container"
+        class="w-full max-w-5xl aspect-[16/9] bg-gray-900 rounded-lg shadow-2xl flex flex-col transition-all">
+        <div id="slide-1"
+            class="slide active h-full w-full flex-col items-center justify-center p-8 md:p-16 text-center">
+            <h1 class="text-4xl md:text-6xl font-bold text-white">gRPC: Beyond Unary RPC</h1>
+            <p class="text-gray-400 mt-8 text-xl">By Rizky Agung Shahputra</p>
+        </div>
+
+        <div id="slide-2" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-6">The RPC Abstraction</h2>
+            <ul class="list-disc list-inside text-lg md:text-xl space-y-4 text-gray-300">
+                <li>The core goal: Make a remote procedure call (RPC) feel exactly like calling a local function.</li>
+                <li>The gRPC framework handles the complex "under-the-hood" work for you.</li>
+                <li class="font-semibold text-white mt-4">Key Components:</li>
+                <ul class="list-['-_'] list-inside ml-6 space-y-3 mt-2 text-gray-400">
+                    <li><b class="text-gray-200">Protocol Buffers (.proto):</b> A strict, language-agnostic API contract
+                        that defines services and messages.</li>
+                    <li><b class="text-gray-200">Serialization:</b> Efficiently converts your data objects into a
+                        compact binary format for network transfer.</li>
+                    <li><b class="text-gray-200">Stubs (Client) & Skeletons (Server):</b> Auto-generated code that hides
+                        the networking logic, providing a simple function-call interface.</li>
+                </ul>
+            </ul>
+        </div>
+
+        <div id="slide-3" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-6">The Engine - HTTP/2</h2>
+            <p class="text-xl text-gray-300 mb-6">gRPC is built on HTTP/2, which provides the features needed for
+                high-performance communication.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-semibold text-white">One TCP Connection</h3>
+                    <p class="text-gray-400 mt-2">The "Highway". A single, persistent connection reduces setup latency.
+                    </p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-semibold text-white">Streams</h3>
+                    <p class="text-gray-400 mt-2">The "Lanes". Independent, bidirectional channels for each RPC call.
+                    </p>
+                </div>
+                <div class="bg-gray-800 p-6 rounded-lg">
+                    <h3 class="text-xl font-semibold text-white">Frames</h3>
+                    <p class="text-gray-400 mt-2">The "Vehicles". The smallest unit of communication (HEADERS, DATA).
+                        Each frame is tagged with a Stream ID.</p>
+                </div>
+            </div>
+            <p class="text-center text-lg mt-8 font-semibold text-teal-400">This structure enables true multiplexing,
+                solving HTTP/1.1's Head-of-Line blocking.</p>
+        </div>
+
+        <div id="slide-4" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4">HTTP/2 Multiplexing in Action</h2>
+            <p class="text-lg text-gray-300 mb-4">How interleaving frames solves Head-of-Line blocking.</p>
+            <div class="multiplex-timeline">
+                <div class="text-white font-bold mb-4">Single TCP Connection Timeline →</div>
+                <div class="flex items-center bg-gray-900 p-2 rounded overflow-x-auto">
+                    <div class="multiplex-frame bg-blue-600 text-white">S3: HDR</div>
+                    <div class="multiplex-frame bg-green-600 text-white">S5: HDR</div>
+                    <div class="multiplex-frame bg-green-600 text-white">S5: DATA</div>
+                    <div class="multiplex-frame bg-green-600 text-white">S5: END</div>
+                    <div class="multiplex-frame bg-gray-600 text-gray-300">...idle...</div>
+                    <div class="multiplex-frame bg-blue-600 text-white">S3: DATA</div>
+                    <div class="multiplex-frame bg-blue-600 text-white">S3: END</div>
+                </div>
+            </div>
+            <ul class="list-disc list-inside text-lg space-y-3 mt-6 text-gray-300">
+                <li>Stream 3 (e.g., a slow database query) and Stream 5 (a quick health check) start at the same time.
+                </li>
+                <li>Frames for both streams are interleaved on the wire. Each frame is tagged with its Stream ID.</li>
+                <li class="font-semibold text-green-400">Stream 5 can complete and return its result without waiting for
+                    the slow Stream 3 to finish.</li>
+            </ul>
+        </div>
+
+        <div id="slide-5" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4 text-center">Unary RPC in Action</h2>
+            <p class="text-center text-lg text-gray-300 mb-4">The simplest gRPC call, mapped to HTTP/2 frames.</p>
+            <div class="flow-diagram">
+                <div class="actor">
+                    <div class="text-2xl">👨‍💻</div>
+                    <div class="font-semibold">Client</div>
+                </div>
+                <div class="arrows">
+                    <div class="arrow">HEADERS <span class="text-gray-400">(method, path, etc.)</span></div>
+                    <div class="arrow">DATA <span class="text-gray-400">(serialized request)</span> <span
+                            class="flag">END_STREAM</span></div>
+                    <div class="arrow response mt-4">HEADERS <span class="text-gray-400">(status)</span></div>
+                    <div class="arrow response">DATA <span class="text-gray-400">(serialized response)</span></div>
+                    <div class="arrow response">TRAILERS <span class="text-gray-400">(grpc-status)</span> <span
+                            class="flag">END_STREAM</span></div>
+                </div>
+                <div class="actor">
+                    <div class="text-2xl">⚙️</div>
+                    <div class="font-semibold">Server</div>
+                </div>
+            </div>
+            <p class="text-center text-lg mt-6 font-semibold text-amber-400">The key is the <code
+                    class="bg-gray-700 px-2 py-1 rounded">END_STREAM</code> flag. For Unary RPC, both sides send it with
+                their one and only data message.</p>
+        </div>
+
+        <div id="slide-6" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4">Server-Side Streaming</h2>
+            <p class="text-xl text-gray-300 mb-6">One request, many responses. Ideal for subscriptions, notifications,
+                or sending a large dataset in chunks.</p>
+            <div class="code">rpc SubscribeToUpdates(Request) returns (<span class="text-cyan-400">stream</span>
+                Response) {}</div>
+            <div class="flow-diagram mt-4">
+                <div class="actor">
+                    <div class="text-2xl">👨‍💻</div>
+                    <div class="font-semibold">Client</div>
+                </div>
+                <div class="arrows">
+                    <div class="arrow">HEADERS + DATA <span class="flag">END_STREAM</span></div>
+                    <div class="arrow response mt-4">DATA <span class="text-gray-400">(Msg 1)</span></div>
+                    <div class="arrow response">DATA <span class="text-gray-400">(Msg 2)</span></div>
+                    <div class="arrow response">...</div>
+                    <div class="arrow response">TRAILERS <span class="flag">END_STREAM</span></div>
+                </div>
+                <div class="actor">
+                    <div class="text-2xl">⚙️</div>
+                    <div class="font-semibold">Server</div>
+                </div>
+            </div>
+            <p class="text-center text-md mt-4">The client sends its single request and immediately half-closes its
+                stream. The server keeps the stream open to send multiple response messages.</p>
+        </div>
+
+        <div id="slide-7" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4">Client-Side Streaming</h2>
+            <p class="text-xl text-gray-300 mb-6">Many requests, one response. Perfect for file uploads, sending
+                telemetry, or batching data from the client.</p>
+            <div class="code">rpc UploadFile(<span class="text-cyan-400">stream</span> Request) returns (Response) {}
+            </div>
+            <div class="flow-diagram mt-4">
+                <div class="actor">
+                    <div class="text-2xl">👨‍💻</div>
+                    <div class="font-semibold">Client</div>
+                </div>
+                <div class="arrows">
+                    <div class="arrow">HEADERS</div>
+                    <div class="arrow">DATA <span class="text-gray-400">(Chunk 1)</span></div>
+                    <div class="arrow">...</div>
+                    <div class="arrow">DATA <span class="text-gray-400">(Final Chunk)</span> <span
+                            class="flag">END_STREAM</span></div>
+                    <div class="arrow response mt-4">TRAILERS + DATA <span class="flag">END_STREAM</span></div>
+                </div>
+                <div class="actor">
+                    <div class="text-2xl">⚙️</div>
+                    <div class="font-semibold">Server</div>
+                </div>
+            </div>
+            <p class="text-center text-md mt-4">The client keeps its stream open, sending the <code
+                    class="bg-gray-700 px-2 py-1 rounded">END_STREAM</code> flag only with its final message. The server
+                waits for this signal before processing and replying.</p>
+        </div>
+
+        <div id="slide-8" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4">Bidirectional Streaming</h2>
+            <p class="text-xl text-gray-300 mb-6">A true, full-duplex conversation. Ideal for chat, real-time gaming,
+                and interactive sessions.</p>
+            <div class="code">rpc StartChat(<span class="text-cyan-400">stream</span> Request) returns (<span
+                    class="text-cyan-400">stream</span> Response) {}</div>
+            <ul class="list-disc list-inside text-lg space-y-3 mt-4 text-gray-300">
+                <li>This is the native, unconstrained behavior of an HTTP/2 stream. The other RPC types are just special
+                    cases of this.</li>
+                <li>Client and Server can read and write messages independently, in any order.</li>
+                <li>Each side closes its stream independently when it's done sending messages.</li>
+                <li class="font-semibold text-yellow-400">Key concept: gRPC is message-oriented, not byte-oriented. You
+                    must chunk large data (like files) into discrete messages yourself.</li>
+            </ul>
+        </div>
+
+        <div id="slide-9" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4">Comparative Analysis</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm md:text-base">
+                    <thead class="bg-gray-700 text-gray-300 uppercase">
+                        <tr>
+                            <th class="p-3">Feature</th>
+                            <th class="p-3">Unary</th>
+                            <th class="p-3">Server Stream</th>
+                            <th class="p-3">Client Stream</th>
+                            <th class="p-3">Bidi Stream</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-800">
+                        <tr class="border-b border-gray-700">
+                            <td class="p-3 font-semibold">Message Flow</td>
+                            <td class="p-3">1 Req → 1 Res</td>
+                            <td class="p-3 text-cyan-400">1 Req → N Res</td>
+                            <td class="p-3 text-cyan-400">N Req → 1 Res</td>
+                            <td class="p-3 text-cyan-400">N Req ↔ M Res</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="p-3 font-semibold">Use Case</td>
+                            <td class="p-3">Standard API Call</td>
+                            <td class="p-3">Subscriptions</td>
+                            <td class="p-3">File Upload</td>
+                            <td class="p-3">Chat / Real-time</td>
+                        </tr>
+                        <tr class="border-b border-gray-700">
+                            <td class="p-3 font-semibold">Client END_STREAM</td>
+                            <td class="p-3">With Request</td>
+                            <td class="p-3">With Request</td>
+                            <td class="p-3 text-amber-400">On Final Msg</td>
+                            <td class="p-3 text-amber-400">Independently</td>
+                        </tr>
+                        <tr>
+                            <td class="p-3 font-semibold">Server END_STREAM</td>
+                            <td class="p-3">With Response</td>
+                            <td class="p-3 text-amber-400">On Final Msg</td>
+                            <td class="p-3">With Response</td>
+                            <td class="p-3 text-amber-400">Independently</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="slide-10" class="slide h-full w-full flex-col justify-center p-8 md:p-16">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4">Trade-offs & Limitations: Load Balancing</h2>
+            <p class="text-xl text-gray-300 mb-6">Long-lived connections and streams create a major challenge for
+                traditional L4 load balancers.</p>
+            <ul class="list-disc list-inside text-lg space-y-4 text-gray-300">
+                <li><b>The Problem:</b> A standard L4 (TCP-level) load balancer sees only one long-lived connection per
+                    client.</li>
+                <li class="font-semibold text-red-400">All RPCs over that connection get "pinned" to a single backend
+                    server, defeating the purpose of load balancing and potentially causing overload.</li>
+            </ul>
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold text-white">Solution 1: Client-Side Balancing</h3>
+                    <p class="text-gray-400 mt-2 text-sm">The client is aware of all backend instances (via a service
+                        like Zookeeper) and chooses one per RPC. Efficient, but pushes complexity to every client.</p>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold text-white">Solution 2: L7 Proxy / Service Mesh</h3>
+                    <p class="text-gray-400 mt-2 text-sm">An intermediate proxy (like NGINX Ingress, Envoy, Linkerd)
+                        understands gRPC/HTTP2. It can inspect individual RPCs and distribute them across backends. The
+                        industry-standard approach.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="slide-11" class="slide h-full w-full flex-col items-center justify-center p-8 md:p-16 text-center">
+            <h2 class="text-3xl md:text-4xl font-bold mb-6">Conclusion</h2>
+            <ul class="list-none text-lg md:text-xl space-y-6 text-gray-300 text-left max-w-3xl">
+                <li class="flex items-start"><span class="text-2xl mr-4">💡</span><span>There aren't four different
+                        protocols, just <b class="text-white">one powerful primitive (the HTTP/2 stream)</b> with
+                        different API constraints.</span></li>
+                <li class="flex items-start"><span class="text-2xl mr-4">🔑</span><span>The <b
+                            class="text-amber-400">`END_STREAM` flag</b> is the low-level key that dictates the shape
+                        and lifecycle of every RPC.</span></li>
+                <li class="flex items-start"><span class="text-2xl mr-4">⚖️</span><span>The choice of RPC type is a
+                        critical architectural decision with real trade-offs in performance, scalability (especially
+                        load balancing), and application complexity.</span></li>
+            </ul>
+        </div>
+
+        <div id="slide-12" class="slide h-full w-full flex-col items-center justify-center p-8 md:p-16 text-center">
+            <h1 class="text-5xl md:text-7xl font-bold text-white">Questions?</h1>
+        </div>
+    </div>
+
+    <div class="mt-4 flex items-center justify-between w-full max-w-5xl px-4">
+        <button id="prevBtn"
+            class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+            &larr; Prev
+        </button>
+        <div id="slide-counter" class="text-gray-400 text-sm">
+            Slide 1 / 12
+        </div>
+        <div class="flex items-center space-x-4">
+            <button id="fullscreenBtn"
+                class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                    class="bi bi-arrows-fullscreen" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd"
+                        d="M5.828 10.172a.5.5 0 0 0-.707 0l-4.096 4.096V11.5a.5.5 0 0 0-1 0v3.975a.5.5 0 0 0 .5.5H4.5a.5.5 0 0 0 0-1H1.732l4.096-4.096a.5.5 0 0 0 0-.707m4.344 0a.5.5 0 0 1 .707 0l4.096 4.096V11.5a.5.5 0 1 1 1 0v3.975a.5.5 0 0 1-.5.5H11.5a.5.5 0 0 1 0-1h2.768l-4.096-4.096a.5.5 0 0 1 0-.707m0-4.344a.5.5 0 0 0 .707 0l4.096-4.096V4.5a.5.5 0 1 0 1 0V.525a.5.5 0 0 0-.5-.5H11.5a.5.5 0 0 0 0 1h2.768l-4.096 4.096a.5.5 0 0 0 0 .707m-4.344 0a.5.5 0 0 1-.707 0L1.025 1.732V4.5a.5.5 0 0 1-1 0V.525a.5.5 0 0 1 .5-.5H4.5a.5.5 0 0 1 0 1H1.732l4.096 4.096a.5.5 0 0 1 0 .707" />
+                </svg>
+            </button>
+            <button id="nextBtn"
+                class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                Next &rarr;
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const slides = Array.from(document.querySelectorAll('.slide'));
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const slideCounter = document.getElementById('slide-counter');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            const presentationContainer = document.getElementById('presentation-container');
+
+            let currentSlide = 0;
+            const totalSlides = slides.length;
+
+            function showSlide(index) {
+                slides.forEach((slide, i) => {
+                    slide.classList.toggle('active', i === index);
+                });
+                slideCounter.textContent = `Slide ${index + 1} / ${totalSlides}`;
+                prevBtn.disabled = index === 0;
+                prevBtn.classList.toggle('opacity-50', index === 0);
+                nextBtn.disabled = index === totalSlides - 1;
+                nextBtn.classList.toggle('opacity-50', index === totalSlides - 1);
+            }
+
+            function nextSlide() {
+                if (currentSlide < totalSlides - 1) {
+                    currentSlide++;
+                    showSlide(currentSlide);
+                }
+            }
+
+            function prevSlide() {
+                if (currentSlide > 0) {
+                    currentSlide--;
+                    showSlide(currentSlide);
+                }
+            }
+
+            function toggleFullScreen() {
+                if (!document.fullscreenElement) {
+                    presentationContainer.requestFullscreen().catch(err => {
+                        alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+
+            nextBtn.addEventListener('click', nextSlide);
+            prevBtn.addEventListener('click', prevSlide);
+            fullscreenBtn.addEventListener('click', toggleFullScreen);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'f') {
+                    e.preventDefault();
+                    toggleFullScreen();
+                }
+                if (document.fullscreenElement) {
+                    if (e.key === 'ArrowRight' || e.key === ' ') {
+                        e.preventDefault();
+                        nextSlide();
+                    } else if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        prevSlide();
+                    }
+                }
+            });
+
+            showSlide(currentSlide);
+        });
+    </script>
+
+</body>
+
+</html>
